@@ -1,0 +1,30 @@
+# Gradle files
+.gradle/
+build/
+
+# IntelliJ/Android Studio files
+*.iml
+.idea/
+*.ipr
+*.iws
+
+# Android specific
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Secrets (Optional: Uncomment if you want to hide Firebase config from Git)
+# google-services.json

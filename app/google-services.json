@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "44198793888",
+    "project_id": "invoice-store-ba4bb",
+    "storage_bucket": "invoice-store-ba4bb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:44198793888:android:42502ba0dadc72be87afc5",
+        "android_client_info": {
+          "package_name": "com.invoice.store"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbe0frMBdCqjsht9nBMecKuz1ZVbS8uZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

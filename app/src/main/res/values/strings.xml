@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Invoice_store</string>
+    <string name="default_web_client_id" translatable="false">44198793888-eb2o17u687j61j519o077596j7l0o5f5.apps.googleusercontent.com</string>
+</resources>
