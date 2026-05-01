@@ -14,7 +14,7 @@ data class Invoice(
     val sellerBankName: String = "",
     val sellerBankAccount: String = "",
     
-    // Buyer Info (VEVŐ)
+    // Buyer Info
     val customerName: String = "", // Same as buyerName
     val customerAddress: String = "",
     val customerTaxId: String = "",

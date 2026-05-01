@@ -10,24 +10,27 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.invoice.store.ui.theme.Invoice_storeTheme
@@ -68,66 +71,18 @@ fun Invoice_storeApp() {
 fun MainScreen(onLogout: () -> Unit) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.INVOICES) }
     var isAddingInvoice by rememberSaveable { mutableStateOf(false) }
-
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            AppDestinations.entries.forEach {
-                item(
-                    icon = {
-                        Icon(
-                            painterResource(it.icon),
-                            contentDescription = it.label
-                        )
-                    },
-                    label = { Text(it.label) },
-                    selected = it == currentDestination,
-                    onClick = { 
-                        currentDestination = it
-                        isAddingInvoice = false 
-                    }
-                )
-            }
-        }
-    ) {
-        Scaffold(
-            floatingActionButton = {
-                if (currentDestination == AppDestinations.INVOICES && !isAddingInvoice) {
-                    FloatingActionButton(onClick = { isAddingInvoice = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Invoice")
-                    }
-                }
-            }
-        ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                when (currentDestination) {
-                    AppDestinations.INVOICES -> {
-                        if (isAddingInvoice) {
-                            AddInvoiceScreen(
-                                onInvoiceSaved = { isAddingInvoice = false },
-                                onCancel = { isAddingInvoice = false }
-                            )
-                        } else {
-                            InvoiceListScreen()
-                        }
-                    }
-                    AppDestinations.PROFILE -> {
-                        ProfileScreen(onLogout = onLogout)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun InvoiceListScreen() {
-    val context = LocalContext.current
+    var editingInvoice by remember { mutableStateOf<Invoice?>(null) }
+    
     var invoices by remember { mutableStateOf<List<Invoice>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val userId = FirebaseManager.auth.currentUser?.uid ?: ""
+    val context = LocalContext.current
 
     LaunchedEffect(userId) {
-        if (userId.isEmpty()) return@LaunchedEffect
+        if (userId.isEmpty()) {
+            isLoading = false
+            return@LaunchedEffect
+        }
         
         FirebaseManager.db.collection("invoices")
             .whereEqualTo("userId", userId)
@@ -145,6 +100,77 @@ fun InvoiceListScreen() {
             }
     }
 
+    NavigationSuiteScaffold(
+        navigationSuiteItems = {
+            AppDestinations.entries.forEach {
+                item(
+                    icon = {
+                        Icon(
+                            imageVector = it.icon,
+                            contentDescription = it.label
+                        )
+                    },
+                    label = { Text(it.label) },
+                    selected = it == currentDestination,
+                    onClick = { 
+                        currentDestination = it
+                        isAddingInvoice = false 
+                        editingInvoice = null
+                    }
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            floatingActionButton = {
+                if (currentDestination == AppDestinations.INVOICES && !isAddingInvoice && editingInvoice == null) {
+                    FloatingActionButton(onClick = { isAddingInvoice = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Invoice")
+                    }
+                }
+            }
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                when (currentDestination) {
+                    AppDestinations.INVOICES -> {
+                        if (isAddingInvoice || editingInvoice != null) {
+                            AddInvoiceScreen(
+                                invoiceToEdit = editingInvoice,
+                                onInvoiceSaved = { 
+                                    isAddingInvoice = false
+                                    editingInvoice = null
+                                },
+                                onCancel = { 
+                                    isAddingInvoice = false
+                                    editingInvoice = null
+                                }
+                            )
+                        } else {
+                            InvoiceListScreen(
+                                invoices = invoices,
+                                isLoading = isLoading,
+                                onEditInvoice = { editingInvoice = it }
+                            )
+                        }
+                    }
+                    AppDestinations.PROFILE -> {
+                        ProfileScreen(
+                            invoiceCount = invoices.size,
+                            onLogout = onLogout
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InvoiceListScreen(
+    invoices: List<Invoice>,
+    isLoading: Boolean,
+    onEditInvoice: (Invoice) -> Unit
+) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("My Invoices", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
@@ -160,7 +186,7 @@ fun InvoiceListScreen() {
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(invoices) { invoice ->
-                    InvoiceItemCard(invoice)
+                    InvoiceItemCard(invoice, onEditClick = { onEditInvoice(invoice) })
                 }
             }
         }
@@ -168,29 +194,66 @@ fun InvoiceListScreen() {
 }
 
 @Composable
-fun InvoiceItemCard(invoice: Invoice) {
+fun InvoiceItemCard(invoice: Invoice, onEditClick: () -> Unit) {
     val context = LocalContext.current
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Invoice") },
+            text = { Text("Are you sure you want to delete invoice ${invoice.invoiceNumber}?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    FirebaseManager.db.collection("invoices").document(invoice.id).delete()
+                    showDeleteDialog = false
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(invoice.customerName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Text(invoice.invoiceNumber, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+                    Text("From: ${invoice.sellerName}", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                 }
-                Text(
-                    "${String.format(Locale.US, "%,.0f", invoice.totalGross)} ${invoice.currency}", 
-                    fontWeight = FontWeight.Bold, 
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "${String.format(Locale.US, "%,.2f", invoice.totalGross)} ${invoice.currency}", 
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Row {
+                        IconButton(onClick = onEditClick, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).format(Date(invoice.date)),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text(
+                        SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).format(Date(invoice.date)),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        "Pay via: ${invoice.paymentMethod}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
                 if (invoice.attachmentName.isNotEmpty()) {
                     TextButton(
                         onClick = {
@@ -215,21 +278,41 @@ fun InvoiceItemCard(invoice: Invoice) {
 }
 
 @Composable
-fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
-    var customerName by remember { mutableStateOf("") }
-    var customerAddress by remember { mutableStateOf("") }
-    var invoiceNumber by remember { mutableStateOf("INV-${System.currentTimeMillis() % 10000}") }
+fun AddInvoiceScreen(invoiceToEdit: Invoice? = null, onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
+    var customerName by remember { mutableStateOf(invoiceToEdit?.customerName ?: "") }
+    var customerAddress by remember { mutableStateOf(invoiceToEdit?.customerAddress ?: "") }
+    var customerTaxId by remember { mutableStateOf(invoiceToEdit?.customerTaxId ?: "") }
+    
+    var sellerName by remember { mutableStateOf(invoiceToEdit?.sellerName ?: "My Business Ltd.") }
+    var sellerAddress by remember { mutableStateOf(invoiceToEdit?.sellerAddress ?: "123 Business St, City") }
+    var sellerTaxId by remember { mutableStateOf(invoiceToEdit?.sellerTaxId ?: "") }
+    
+    var invoiceNumber by remember { mutableStateOf(invoiceToEdit?.invoiceNumber ?: "INV-${System.currentTimeMillis() % 10000}") }
+    var currency by remember { mutableStateOf(invoiceToEdit?.currency ?: "HUF") }
+    var paymentMethod by remember { mutableStateOf(invoiceToEdit?.paymentMethod ?: "Átutalás") }
     
     var itemDescription by remember { mutableStateOf("") }
     var itemPrice by remember { mutableStateOf("") }
-    val itemsList = remember { mutableStateListOf<InvoiceLineItem>() }
+    val itemsList = remember { 
+        mutableStateListOf<InvoiceLineItem>().apply {
+            if (invoiceToEdit != null) addAll(invoiceToEdit.items)
+        }
+    }
 
     var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedFileName by remember { mutableStateOf("") }
+    var selectedFileName by remember { mutableStateOf(invoiceToEdit?.attachmentName ?: "") }
+    var existingAttachmentUrl by remember { mutableStateOf(invoiceToEdit?.attachmentUrl ?: "") }
     
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var isSaving by remember { mutableStateOf(false) }
+    
+    // Dropdown states
+    var currencyExpanded by remember { mutableStateOf(false) }
+    val currencies = listOf("HUF", "EUR", "USD", "GBP")
+    
+    var paymentExpanded by remember { mutableStateOf(false) }
+    val paymentMethods = listOf("Átutalás", "Készpénz", "Bankkártya", "Utánvét")
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -247,29 +330,131 @@ fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        Text("New Detailed Invoice", style = MaterialTheme.typography.headlineMedium)
+        Text(if (invoiceToEdit != null) "Edit Invoice" else "New Detailed Invoice", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
         
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text("Invoice Header", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = invoiceNumber,
+                    onValueChange = { invoiceNumber = it },
+                    label = { Text("Invoice Number") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    // Currency Dropdown
+                    @OptIn(ExperimentalMaterial3Api::class)
+                    ExposedDropdownMenuBox(
+                        expanded = currencyExpanded,
+                        onExpandedChange = { currencyExpanded = !currencyExpanded },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = currency,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Currency") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = currencyExpanded,
+                            onDismissRequest = { currencyExpanded = false }
+                        ) {
+                            currencies.forEach { curr ->
+                                DropdownMenuItem(
+                                    text = { Text(curr) },
+                                    onClick = {
+                                        currency = curr
+                                        currencyExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // Payment Method Dropdown
+                    @OptIn(ExperimentalMaterial3Api::class)
+                    ExposedDropdownMenuBox(
+                        expanded = paymentExpanded,
+                        onExpandedChange = { paymentExpanded = !paymentExpanded },
+                        modifier = Modifier.weight(1.2f)
+                    ) {
+                        OutlinedTextField(
+                            value = paymentMethod,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Payment Method") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentExpanded) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = paymentExpanded,
+                            onDismissRequest = { paymentExpanded = false }
+                        ) {
+                            paymentMethods.forEach { method ->
+                                DropdownMenuItem(
+                                    text = { Text(method) },
+                                    onClick = {
+                                        paymentMethod = method
+                                        paymentExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text("Seller Information", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
-            value = invoiceNumber,
-            onValueChange = { invoiceNumber = it },
-            label = { Text("Invoice Number") },
+            value = sellerName,
+            onValueChange = { sellerName = it },
+            label = { Text("Seller Name") },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
-        
+        OutlinedTextField(
+            value = sellerAddress,
+            onValueChange = { sellerAddress = it },
+            label = { Text("Seller Address") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = sellerTaxId,
+            onValueChange = { sellerTaxId = it },
+            label = { Text("Seller Tax ID") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Buyer Information (VEVŐ)", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = customerName,
             onValueChange = { customerName = it },
-            label = { Text("Buyer Name (VEVŐ)") },
+            label = { Text("Buyer Name") },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
-
         OutlinedTextField(
             value = customerAddress,
             onValueChange = { customerAddress = it },
             label = { Text("Buyer Address") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = customerTaxId,
+            onValueChange = { customerTaxId = it },
+            label = { Text("Buyer Tax ID") },
             modifier = Modifier.fillMaxWidth()
         )
         
@@ -296,19 +481,22 @@ fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
         Text("Items", style = MaterialTheme.typography.titleMedium)
         
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = itemDescription,
                 onValueChange = { itemDescription = it },
                 label = { Text("Description") },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                singleLine = true
             )
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedTextField(
                 value = itemPrice,
                 onValueChange = { itemPrice = it },
-                label = { Text("Net Price") },
-                modifier = Modifier.width(100.dp)
+                label = { Text("Price") },
+                modifier = Modifier.width(110.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true
             )
             IconButton(onClick = {
                 val price = itemPrice.toDoubleOrNull()
@@ -326,7 +514,7 @@ fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
                     itemPrice = ""
                 }
             }) {
-                Icon(Icons.Default.Add, "Add")
+                Icon(Icons.Default.AddCircle, "Add", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
             }
         }
         
@@ -352,16 +540,16 @@ fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
                 Text("Summary", fontWeight = FontWeight.Bold)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Total Net:")
-                    Text("${String.format(Locale.US, "%,.0f", totalNet)} HUF")
+                    Text("${String.format(Locale.US, "%,.2f", totalNet)} $currency")
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Total VAT (27%):")
-                    Text("${String.format(Locale.US, "%,.0f", totalVat)} HUF")
+                    Text("${String.format(Locale.US, "%,.2f", totalVat)} $currency")
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Total Gross:", fontWeight = FontWeight.Bold)
-                    Text("${String.format(Locale.US, "%,.0f", totalGross)} HUF", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("${String.format(Locale.US, "%,.2f", totalGross)} $currency", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -379,20 +567,26 @@ fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
                 scope.launch {
                     try {
                         val userId = FirebaseManager.auth.currentUser?.uid ?: ""
-                        var attachmentUrl = ""
+                        var attachmentUrl = existingAttachmentUrl
                         
                         // Upload file if selected
                         selectedFileUri?.let { uri ->
-                            val ref = FirebaseManager.storage.reference.child("invoices/$userId/${System.currentTimeMillis()}_$selectedFileName")
-                            ref.putFile(uri).await()
-                            attachmentUrl = ref.downloadUrl.await().toString()
+                            // Use MinIO for storage instead of Firebase
+                            attachmentUrl = MinioManager.uploadFile(uri, context)
                         }
 
                         val invoice = Invoice(
+                            id = invoiceToEdit?.id ?: "",
                             userId = userId,
                             invoiceNumber = invoiceNumber,
                             customerName = customerName,
                             customerAddress = customerAddress,
+                            customerTaxId = customerTaxId,
+                            sellerName = sellerName,
+                            sellerAddress = sellerAddress,
+                            sellerTaxId = sellerTaxId,
+                            paymentMethod = paymentMethod,
+                            currency = currency,
                             items = itemsList.toList(),
                             totalNet = totalNet,
                             totalVat = totalVat,
@@ -400,9 +594,15 @@ fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
                             attachmentUrl = attachmentUrl,
                             attachmentName = selectedFileName
                         )
-                        FirebaseManager.db.collection("invoices")
-                            .add(invoice.toMap())
-                            .addOnSuccessListener {
+                        
+                        val collection = FirebaseManager.db.collection("invoices")
+                        val task = if (invoiceToEdit != null) {
+                            collection.document(invoiceToEdit.id).set(invoice.toMap())
+                        } else {
+                            collection.add(invoice.toMap())
+                        }
+                        
+                        task.addOnSuccessListener {
                                 isSaving = false
                                 onInvoiceSaved()
                             }
@@ -434,27 +634,85 @@ fun AddInvoiceScreen(onInvoiceSaved: () -> Unit, onCancel: () -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(onLogout: () -> Unit) {
+fun ProfileScreen(invoiceCount: Int, onLogout: () -> Unit) {
     val user = FirebaseManager.auth.currentUser
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Profile", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(40.dp))
+        
+        Icon(
+            imageVector = Icons.Default.AccountCircle,
+            contentDescription = null,
+            modifier = Modifier.size(120.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Email: ${user?.email ?: "Not logged in"}")
+        
+        Text(
+            text = user?.displayName ?: "User",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = user?.email ?: "Not logged in",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
         Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onLogout, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Total Invoices",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    text = "$invoiceCount",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        OutlinedButton(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+        ) {
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
             Text("Logout")
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 enum class AppDestinations(
     val label: String,
-    val icon: Int,
+    val icon: ImageVector,
 ) {
-    INVOICES("Invoices", R.drawable.ic_home),
-    PROFILE("Profile", R.drawable.ic_account_box),
+    INVOICES("Invoices", Icons.AutoMirrored.Filled.ReceiptLong),
+    PROFILE("Profile", Icons.Default.AccountCircle),
 }

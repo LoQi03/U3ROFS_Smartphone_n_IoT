@@ -13,8 +13,10 @@ googleServices = "4.4.4"
 credentials = "1.6.0"
 googleid = "1.2.0"
 material-icons-extended = "1.7.8"
+aws-s3 = "2.81.1"
 
 [libraries]
+aws-android-sdk-s3 = { group = "com.amazonaws", name = "aws-android-sdk-s3", version.ref = "aws-s3" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
