@@ -1,6 +1,6 @@
 # Számlakezelő Android Mobilalkalmazás – Fejlesztési Beszámoló
 
-**Tantárgy:** Okostelefonok és IoT programozása
+**Tantárgy:** Okostelefonok és IoT programozása    
 **Fejlesztő:** Nagy Máté (U3ROFS)  
 **Dátum:** 2026. május  
 **Technológia:** Android (Kotlin, Jetpack Compose)  
